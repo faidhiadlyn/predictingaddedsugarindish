@@ -1,0 +1,157 @@
+[
+
+  {
+    "Name": "apple_pie",
+    "Calories": 240.1,
+    "Serving size (g)": 100,
+    "Sugar (g)": 15.5
+  },
+
+  {
+    "Name": "cheesecake",
+    "Calories": 314.5,
+    "Serving size (g)": 100,
+    "Sugar (g)": 21.8
+  },
+
+  {
+    "Name": "choccake",
+    "Calories": 391.8,
+    "Serving size (g)": 100,
+    "Sugar (g)": 39.6
+  },
+
+  {
+    "Name": "churros",
+    "Calories": 404.3,
+    "Serving size (g)": 100,
+    "Sugar (g)": 18.5
+  },
+
+  {
+    "Name": "cookie",
+    "Calories": 506.2,
+    "Serving size (g)": 100,
+    "Sugar (g)": 33
+  },
+
+  {
+    "Name": "cupcakes",
+    "Calories": 379.2,
+    "Serving size (g)": 100,
+    "Sugar (g)": 40
+  },
+
+  {
+    "Name": "donut",
+    "Calories": 415.9,
+    "Serving size (g)": 100,
+    "Sugar (g)": 22.7
+  },
+
+  {
+    "Name": "hamburger",
+    "Calories": 242.5,
+    "Serving size (g)": 100,
+    "Sugar (g)": 4.4
+  },
+
+  {
+    "Name": "hotdog",
+    "Calories": 325.4,
+    "Serving size (g)": 100,
+    "Sugar (g)": 1.3
+  },
+
+  {
+    "Name": "icecream",
+    "Calories": 206.8,
+    "Serving size (g)": 100,
+    "Sugar (g)": 21.1
+  },
+
+   {
+    "Name": "kaya_toast",
+    "Calories": 353,
+    "Serving size (g)": 104,
+    "Sugar (g)": 15
+   },
+
+   {
+    "Name": "kueytiaw",
+    "Calories": 364,
+    "Serving size (g)": 100,
+    "Sugar (g)": 0.67
+   },
+
+  {
+    "Name": "laksa",
+    "Calories": 129.4,
+    "Serving size (g)": 100,
+    "Sugar (g)": 3.4
+  },
+
+  {
+    "Name": "lasagna",
+    "Calories": 157.7,
+    "Serving size (g)": 100, 
+    "Sugar (g)": 2.9 
+  },
+
+  {
+    "Name": "macarons",
+    "Calories": 390.7,
+    "Serving size (g)": 100,
+    "Sugar (g)": 45.9
+  },
+
+  {
+    "Name": "nasi_lemak",
+    "Calories": 191.3,
+    "Serving size (g)": 100,
+    "Sugar (g)": 2.4
+  },
+
+  {
+    "Name": "pizza",
+    "Calories": 262.9,
+    "Serving size (g)": 100,
+    "Sugar (g)": 3.6
+  },
+
+  {
+    "Name": "popiah",
+    "Calories": 139,
+    "Serving size (g)": 100,
+    "Sugar (g)": 1.19
+  },
+
+  {
+    "Name": "satay",
+    "Calories": 208.9,
+    "Serving size (g)": 100,
+    "Sugar (g)": 7.0
+  },
+
+  {
+    "Name": "soup",
+    "Calories": 24.6,
+    "Serving size (g)": 100,
+    "Sugar (g)": 0.3
+  },
+
+  {
+    "Name": "takoyaki",
+    "Calories": 175,
+    "Serving size (g)": 100,
+    "Sugar (g)": 0.48
+  },
+
+  {
+    "Name": "waffles",
+    "Calories": 438,
+    "Serving size (g)": 100,
+    "Sugar (g)": 6.34
+  }
+
+]
