@@ -1,0 +1,420 @@
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+from google.colab import drive
+from pathlib import Path
+import os.path
+from itertools import cycle
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+
+import tensorflow as tf
+
+from sklearn.metrics import confusion_matrix, classification_report, precision_recall_curve, average_precision_score, roc_curve, auc
+from sklearn.preprocessing import label_binarize
+from sklearn.multiclass import OneVsRestClassifier
+
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+
+drive.mount('/content/drive')
+
+import sys
+print("Python version:", sys.version)
+
+# Check TensorFlow version
+print("TensorFlow version:", tf.__version__)
+
+import cv2
+# Get OpenCV version
+opencv_version = cv2.__version__
+
+# Print OpenCV version
+print("OpenCV version:", opencv_version)
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+image_dir = Path('/content/drive/MyDrive/FYP/train')
+
+filepaths = list(image_dir.glob(r'**/*.jpg'))
+labels = list(map(lambda x: os.path.split(os.path.split(x)[0])[1], filepaths))
+
+filepaths = pd.Series(filepaths, name='Filepath').astype(str)
+labels = pd.Series(labels, name='Label')
+
+images = pd.concat([filepaths, labels], axis=1)
+
+category_samples = []
+desired_samples_per_category = 100
+
+for category in images['Label'].unique():
+    category_slice = images.query("Label == @category")
+
+    # Sample the desired number of images (200 in this case) if available, else take all available
+    sampled_images= category_slice.sample(min(desired_samples_per_category, len(category_slice)), random_state=1)
+
+    category_samples.append(sampled_images)
+
+image_df= pd.concat(category_samples, axis=0).sample(frac=1.0, random_state=1).reset_index(drop=True)
+
+image_df
+
+for dirname, _, filenames in os.walk('/content/drive/MyDrive/FYP/train'):
+    for filename in filenames:
+        print(os.path.join(dirname, filename))
+
+# Train-Validation-Test Split
+train_df, temp_df = train_test_split(image_df, train_size=0.8, shuffle=True, random_state=1)
+val_df, test_df = train_test_split(temp_df, train_size=0.5, shuffle=True, random_state=1)
+
+train_generator = tf.keras.preprocessing.image.ImageDataGenerator(
+    preprocessing_function=tf.keras.applications.mobilenet_v2.preprocess_input,
+    validation_split=0.2
+)
+
+test_generator = tf.keras.preprocessing.image.ImageDataGenerator(
+    preprocessing_function=tf.keras.applications.mobilenet_v2.preprocess_input
+)
+
+# Create a list with the filepaths for training and testing
+train_dir = Path('/content/drive/MyDrive/FYP/train')
+train_filepaths = list(train_dir.glob(r'**/*.jpg'))
+
+def image_processing(filepath):
+    """ Create a DataFrame with the filepath and the labels of the pictures
+    """
+
+    labels = [str(filepath[i]).split("/")[-2] \
+              for i in range(len(filepath))]
+
+    filepath = pd.Series(filepath, name='Filepath').astype(str)
+    labels = pd.Series(labels, name='Label')
+
+    # Concatenate filepaths and labels
+    df = pd.concat([filepath, labels], axis=1)
+
+    # Shuffle the DataFrame and reset index
+    df = df.sample(frac=1).reset_index(drop = True)
+
+    return df
+
+train_df = image_processing(train_filepaths)
+
+print('-- Training set --\n')
+print(f'Number of pictures: {train_df.shape[0]}\n')
+print(f'Number of different labels: {len(train_df.Label.unique())}\n')
+print(f'Labels: {train_df.Label.unique()}')
+
+batch_size = 32
+
+# Set up data generators
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True
+)
+
+test_datagen = ImageDataGenerator(rescale=1./255)
+
+# Training generator
+train_generator = train_datagen.flow_from_dataframe(
+    dataframe=train_df,
+    x_col='Filepath',
+    y_col='Label',
+    target_size=(224, 224),
+    color_mode='rgb',
+    class_mode='categorical',
+    batch_size=batch_size,  # Set the batch size
+    shuffle=True,
+    seed=42,
+    subset=None  # Include all data for training
+)
+
+# Validation generator
+val_generator = train_datagen.flow_from_dataframe(
+    dataframe=temp_df,
+    x_col='Filepath',
+    y_col='Label',
+    target_size=(224, 224),
+    color_mode='rgb',
+    class_mode='categorical',
+    batch_size=batch_size,  # Set the batch size
+    shuffle=True,
+    seed=42,
+    subset=None  # Include all data for validation
+)
+
+# Test generator
+test_generator = test_datagen.flow_from_dataframe(
+dataframe=test_df,
+x_col='Filepath',
+y_col='Label',
+target_size=(224, 224),
+color_mode='rgb',
+class_mode='categorical',
+batch_size=batch_size, # Set the batch size
+shuffle=False
+)
+
+train_df.head(5)
+
+# Create a DataFrame with one Label of each category
+df_unique = train_df.copy().drop_duplicates(subset=["Label"]).reset_index()
+
+# Display some pictures of the dataset
+fig, axes = plt.subplots(nrows=2, ncols=11, figsize=(9, 7),
+                        subplot_kw={'xticks': [], 'yticks': []})
+
+for i, ax in enumerate(axes.flat):
+    ax.imshow(plt.imread(df_unique.Filepath[i]))
+    ax.set_title(df_unique.Label[i], fontsize = 10)
+plt.tight_layout(pad=0.5)
+plt.show()
+
+"""## **Building the Model**"""
+
+pretrained_model = tf.keras.applications.MobileNetV2(
+    input_shape=(224, 224, 3),
+    include_top=False,
+    weights='imagenet',
+    pooling='avg'
+)
+
+pretrained_model.trainable = False
+
+pretrained_model = tf.keras.applications.MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+
+# Freeze the layers of the pretrained model
+for layer in pretrained_model.layers:
+    layer.trainable = False
+
+# Build your model
+inputs = pretrained_model.input
+
+x = tf.keras.layers.GlobalAveragePooling2D()(pretrained_model.output)
+x = tf.keras.layers.Dense(128, activation='relu')(x)
+x = tf.keras.layers.Dense(128, activation='relu')(x)
+
+# Adjust the number of output neurons based on your number of classes (22 in this case)
+outputs = tf.keras.layers.Dense(22, activation='softmax')(x)
+
+model = tf.keras.Model(inputs, outputs)
+
+print(model.summary())
+
+from keras.utils import plot_model
+plot_model(model, show_shapes=True, show_layer_names=False, dpi=200)
+
+from tensorflow.keras.optimizers import Adam
+optimizer = Adam(learning_rate=0.001)
+
+model.compile(
+    optimizer=optimizer,
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = model.fit(
+    train_generator,
+    validation_data=val_generator,
+    epochs=100,
+    callbacks=[
+        tf.keras.callbacks.EarlyStopping(
+            monitor='val_loss',
+            patience=10,
+            restore_best_weights=True
+        )
+    ]
+)
+
+# Evaluate the model on the test set
+results = model.evaluate(test_generator, verbose=0)
+print("Test Accuracy: {:.2f}%".format(results[1] * 100))
+
+predictions = np.argmax(model.predict(test_generator), axis=1)
+
+cm = confusion_matrix(test_generator.labels, predictions)
+clr = classification_report(test_generator.labels, predictions, target_names=test_generator.class_indices, zero_division=0)
+
+# Modify the ticks and labels based on the number of classes (22 in this case)
+tick_positions = np.arange(22) + 0.5
+plt.figure(figsize=(10, 8))
+sns.heatmap(cm, annot=True, fmt='g', vmin=0, cmap='Blues', cbar=False)
+plt.xticks(ticks=np.arange(22) + 0.5, labels=test_generator.class_indices, rotation=90)
+plt.yticks(ticks=np.arange(22) + 0.5, labels=test_generator.class_indices, rotation=0)
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix")
+plt.show()
+
+print("Classification Report:\n----------------------\n", clr)
+
+# Assuming 'history' is a training history object from model training
+val_loss = history.history['val_loss']
+train_loss = history.history['loss']
+
+epochs = range(1, len(val_loss) + 1)
+
+# Plotting validation loss and training loss
+plt.plot(epochs, val_loss, label='Validation Loss')
+plt.plot(epochs, train_loss, label='Training Loss')
+
+# Adding title, labels, and legend
+plt.title('Training and Validation Loss Over Epochs')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+# Show the plot
+plt.show()
+
+# Evaluate the model on the test set
+results = model.evaluate(test_generator, verbose=0)
+print("Test Accuracy: {:.2f}%".format(results[1] * 100))
+
+#Convert result of training to a DataFrame
+result_df = pd.DataFrame(history.history)
+result_df.tail()
+
+x = np.arange(len(result_df))
+fig, ax = plt.subplots(2, 1, figsize=(15, 12))
+#  AX0 : Loss
+ax[0].plot(x, result_df.loss, label='loss', linewidth=3)
+ax[0].plot(x, result_df.val_loss, label='val_loss', linewidth=2, ls='-.', c='r')
+ax[0].set_title('Loss', fontsize=20)
+ax[0].legend()
+
+#  AX1 : Loss
+ax[1].plot(x, result_df.accuracy, label='accuracy', linewidth=2)
+ax[1].plot(x, result_df.val_accuracy, label='val_accuracy', linewidth=2, ls='-.', c='r')
+ax[1].set_title('Accuracy', fontsize=20)
+ax[1].legend()
+
+plt.sharex=True
+
+
+plt.show()
+
+from termcolor import colored
+
+test_loss, test_acc = model.evaluate_generator(test_generator)
+
+print(colored(f'Test Loss : {round(test_loss, 3)}', 'green', attrs=['bold']))
+print(colored(f'Test Accuracy : {round(test_acc, 3)}', 'green', attrs=['bold']))
+
+pred = model.predict(test_generator)
+pred = np.argmax(pred,axis=1)
+# Map the label
+labels = (train_generator.class_indices)
+labels = dict((v,k) for k,v in labels.items())
+pred1 = [labels[k] for k in pred]
+pred1
+
+def output(location):
+    img = load_img(location, target_size=(224, 224, 3))
+    img = img_to_array(img)
+    img = img / 255
+    img = np.expand_dims(img, axis=0)
+    answer = model.predict(img)
+    y_class = answer.argmax(axis=-1)
+    y = " ".join(str(x) for x in y_class)
+    y = int(y)
+    res = labels[y]
+    return res
+
+import cv2
+import matplotlib.pyplot as plt
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+
+import requests
+import json
+
+
+# Load the image
+image_path = '/content/drive/MyDrive/FYP/train/satay/10.jpg'
+img = cv2.imread(image_path)
+img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
+
+# Predict the food
+predicted_food = output(image_path)
+
+# Define text properties
+font = cv2.FONT_HERSHEY_SIMPLEX
+font_scale = 0.4
+font_color = (255, 255, 255)  # White color
+font_thickness = 1
+
+# Define the position for the text (bottom-left corner of the image)
+text_position = (10, img.shape[0] - 10)  # 10 pixels from the bottom-left corner
+
+# Put the text on the image
+cv2.putText(img, f'Predicted food is: {predicted_food}', text_position, font, font_scale, font_color, font_thickness, cv2.LINE_AA)
+
+# Display the image
+plt.imshow(img)
+plt.axis('off')  # Hide axes
+plt.show()
+
+# Load the food data from the JSON file
+with open('/content/drive/MyDrive/FYP/nutritionfoods.json', 'r') as file:
+    food_data = json.load(file)
+
+# Function to extract food name from image file path
+def get_food_name_from_image_path(image_path):
+    return image_path.split('/')[-2]
+
+# Example image path
+img = '/content/drive/MyDrive/FYP/train/satay/10.jpg'
+
+# Get the food name from the image path
+food_name = get_food_name_from_image_path(img)
+
+# Look up the food information from the JSON data
+food_info = next((item for item in food_data if item["Name"] == food_name), None)
+
+if food_info:
+    print(json.dumps(food_info, indent=4))
+else:
+    print("Food item not found in the JSON data")
+
+# Binarize the labels for ROC curve
+y_test_bin = label_binarize(test_generator.labels, classes=list(range(22)))
+
+# Predict probabilities for each class
+y_score = model.predict(test_generator)
+
+class_names = ['apple_pie','cheesecake','choccake','churros','cookie','cupcakes','donut','hamburger','hotdog','icecream','kaya_toast','kueytiaw','laksa','lasagna','macarons','nasi_lemak','pizza', 'popiah','satay','soup','takoyaki','waffles' ]
+
+# Compute ROC curve and ROC area for each class
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+
+for i in range(22):
+    fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+
+# Plot ROC curves
+plt.figure(figsize=(10, 8))
+colors = cycle(['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan', 'magenta',
+                'lightblue', 'yellow', 'darkgreen', 'darkred', 'indigo', 'tan', 'teal', 'salmon', 'lavender', 'gold'])
+
+for i, color in zip(range(22), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2, label=f'{class_names[i]} (ROC curve={roc_auc[i]:0.2f})')
+
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend(loc="best")
+plt.show()
+
+model.save('FYPmodelfinal.h5')
